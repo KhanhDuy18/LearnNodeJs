@@ -2,71 +2,99 @@ import express from "express";
 import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import session from "express-session";
-import { database } from "./db-config.js";
-import indexRouter from "./api/index.js";
 dotenv.config();
 
-database.connect();
 const app = express();
-app.use(cookieParser("MY SECRET"));
+app.set("trust proxy", 1); // trust first proxy
+app.use(cookieParser("secret"));
 
 app.use(
   session({
-    resave: false,
-    saveUninitialized: false,
-    secret: "somesecret",
-    cookie: { maxAge: 60000, httpOnly: true },
+    secret: "your_secret_key", // A secret key used to sign the session ID cookie
+    resave: false, // Forces the session to be saved back to the session store
+    saveUninitialized: false, // Forces a session that is "uninitialized" to be saved to the store
+    cookie: {
+      maxAge: 3600000, // Sets the cookie expiration time in milliseconds (1 hour here)
+      httpOnly: true, // Reduces client-side script control over the cookie
+      // Ensures cookies are only sent over HTTPS
+      // secure: true,
+    },
   })
 );
-app.listen(process.env.PORT, () => {
-  console.log(`Server is running on port ${process.env.PORT}`);
+
+app.get("/", (req, res) => {
+  res.json("Hello");
 });
 
-app.use("/", indexRouter);
+app.get("/cookie/setCookie", (req, res) => {
+  res.cookie("sessionId", "12345678", {
+    // "expires" - The cookie expires in 24 hours
+    // expires: new Date(Date.now() + 86400000),
+    // We can also use "maxAge" to specify expiration time in milliseconds
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    // "path" - The cookie is accessible for APIs under the '/api' route
+    path: "/cookie",
+    // "domain" - The cookie belongs to the 'example.com' domain
+    // domain: "",
+    // "secure" - The cookie will be sent over HTTPS only
+    secure: true,
+    // "HttpOnly" - The cookie cannot be accessed by client-side scripts
+    httpOnly: true,
+    // signed: true,
+  });
+  res.json("Set cookie");
+});
 
-// app.get("/setCookie", (req, res) => {
-//   res.cookie("demo", "cookie123456", { signed: true, httpOnly: true });
-//   res.json({ ok: 1 });
-// });
+app.get("/cookie/getCookie", (req, res) => {
+  console.log(req.cookies);
+  res.json(req.cookies);
+});
 
-// app.get("/getCookie", (req, res) => {
-//   console.log("getCookie::::", req.cookies);
-//   console.log(
-//     "getCookie::::signedCookies::::",
-//     req.signedCookies.sitesSecurity
-//   );
-//   res.json(req.cookies);
-// });
+app.get("/session/getCookie", (req, res) => {
+  res.json(req.cookies);
+});
+
+app.get("/deleteCookie", (req, res) => {
+  res.clearCookie("sessionId");
+  res.send("Clear cookie");
+});
+
+app.get("/session", (req, res) => {
+  if (req.session.views) {
+    req.session.views++;
+    res.send(`Number of views: ${req.session.views}`);
+  } else {
+    req.session.views = 1;
+    res.send("Welcome to this page for the first time!");
+  }
+});
 
 // set session
 app.get("/set_session", (req, res) => {
-  //set a object to session
-  // req.session.User = {
-  //   website: "anonystick.com",
-  //   type: "blog javascript",
-  //   like: "4550",
-  // };
+  req.session.User = {
+    username: "nodeJS",
+    age: 23,
+    email: "test@gamil.com",
+  };
 
-  res.cookie("demo", "cookie123456", { signed: true, httpOnly: true });
-
-  return res.status(200).json({ status: "success" });
+  return res.status(200).json({ status: "Set success" });
 });
 
-//check session
 app.get("/get_session", (req, res) => {
   if (req.session.User) {
-    return res
-      .status(200)
-      .json({ status: "success", session: req.session.User });
+    return res.status(200).json({ status: "success", session: req.session });
   }
   return res.status(200).json({ status: "error", session: "No session" });
 });
 
-//destroy session
-// app.get("/destroy_session", (req, res) => {
-//   req.session.destroy(function (err) {
-//     return res
-//       .status(200)
-//       .json({ status: "success", session: "cannot access session here" });
-//   });
-// });
+app.get("/destroy_session", (req, res) => {
+  req.session.destroy(function (err) {
+    return res
+      .status(200)
+      .json({ status: "success", session: "cannot access session here" });
+  });
+});
+
+app.listen(process.env.PORT, () => {
+  console.log(`Server is running on port ${process.env.PORT}`);
+});
